@@ -1,0 +1,80 @@
+---
+title: "dacon-analysis"
+author: "Sanghoon Park"
+date: '2020 12 12 '
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 배경 및 목적
+
+현대 민주주의는 대의 민주주의(representative democracy)이며, 그 중심에는 유권자에 의해 선출되어 위임받은 권한을 행사하는 대표자(representatives)가 존재합니다. 한정된 자원과 시간 등의 문제로 직접 민주주의가 불가능한 지금, 대의 민주주의는 현실적으로 선택가능한 제도라고 할 수 있습니다. 그렇다면 우리의 고민은 우리사회의 대의 민주주의가 실현되는 공간, 국회가 과연 유권자들의 기대에 부응하고 있는지, 혹은 과거에는 부족했을지라도 점차 나아지고 있는지, 그러한 변화가 실질적인 것인지 표면적인 것에 불과하는지를 이해하는 것입니다.
+
+국회의 입법활동은 이러한 대의 민주주의의 작동원리와 성과를 직접적으로 보여주는 정치적 행위입니다. 그럼에도 불구하고 국회의 입법활동은 전문적인 용어들과 법률 조항, 제도들로 인하여 일반 시민들이 쉽게 접근하기 어려운 영역에 머물러 있습니다. 우리 국회는 국회 내 회의들의 속기록 및 의사결정 사항들을 다양한 방식으로 중계하고 공개하여 그 투명성을 날로 제고하고 있지만, 정작 입법 과정을 이해하고 실생활과 연관 지어 생각하는 것은 쉽지 않습니다.
+
+## 시각화를 위한 질문들
+
+이 프로젝트를 통해 우리는 다음과 같은 질문들을 시각화를 통해 보다 직관적인 방식으로 접근해보고자 합니다.
+
+### 각 대수 국회 입활활동 평가
+
++ 15대 이후 각 대수의 국회에서 회기 기간 동안 얼마나 입법활동을 활발히 하였는가? 활동 정도의 변화가 있었는가?
+
++ 법안처리결과 (폐기, 가결, 대안반영)는 어떻게 나타나는지?
+
+국회의 입안 수는 일반적으로 입법생산성을 보여주는 지표로 평가됩니다. 하지만 높은 생산성이 있는, 높은 성과를 내는 의원이라고 실적을 평가받고자 하는 국회의원들은 법리적으로 충분히 검토되지 않은 법안들을 일괄적으로 제출할 수도 있습니다. 따라서 법안처리결과에 대한 자료를 함께 보여줌으로써 실질적인 입법활동의 생산성을 살펴보고자 합니다.
+
+
+```{r}
+library(showtext)
+library(ggthemes)
+library(tidyverse)
+```
+
+```{r}
+options(scipen = 999, warn=-1)
+font_add_google('Noto Sans KR', 'notosanskr')
+font_add_google('Nanum Pen Script', 'nanumpen')
+showtext_auto()
+```
+
+```{r}
+people_data <- read.csv("data/new_people.csv")
+suggest_data <- read.csv("data/suggest.csv")
+process_data <- read.csv("data/process.csv")
+```
+
+```{r}
+head(people_data)
+
+people_info <- people_data %>%
+    select(DAESU:BIRTH) %>%
+    filter(DAESU >= 15)
+head(people_info)
+
+```
+
+```{r}
+# options(repr.plot.width = 3, repr.plot.height = 2, repr.plot.res = 300)
+options(repr.plot.width=8, repr.plot.height=5)
+people_info %>%
+    mutate(DAESU = paste(DAESU, "대")) %>%
+    group_by(DAESU) %>%
+    summarize(n = n()) %>%
+    ggplot(., aes(x = as.factor(DAESU), n)) +
+    geom_bar(stat = "identity", col = "gray10", width = 0.75, fill = "orangered3") +
+    geom_text(aes(y = n + 15, label = n), size = 12, family="notosanskr")+
+    theme_fivethirtyeight() +
+    ylim(NA, 400) + 
+    theme(legend.position = "none",
+          panel.grid.major.x=element_blank(),
+          title = element_text(size = 50, family="notosanskr"),
+          axis.title = element_text(size = 30, family="notosanskr"), 
+          axis.text = element_text(size = 30, family="notosanskr"), 
+          axis.line = element_line(size = 0.4, colour = "grey10")) +
+    labs(title = "국회 대수별 국회의원 수",
+         x = "", y = "인원 수 (명)")
+```
