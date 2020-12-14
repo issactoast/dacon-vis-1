@@ -17,64 +17,180 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## 시각화를 위한 질문들
 
-이 프로젝트를 통해 우리는 다음과 같은 질문들을 시각화를 통해 보다 직관적인 방식으로 접근해보고자 합니다.
-
-### 각 대수 국회 입활활동 평가
-
-+ 15대 이후 각 대수의 국회에서 회기 기간 동안 얼마나 입법활동을 활발히 하였는가? 활동 정도의 변화가 있었는가?
-
-+ 법안처리결과 (폐기, 가결, 대안반영)는 어떻게 나타나는지?
-
-국회의 입안 수는 일반적으로 입법생산성을 보여주는 지표로 평가됩니다. 하지만 높은 생산성이 있는, 높은 성과를 내는 의원이라고 실적을 평가받고자 하는 국회의원들은 법리적으로 충분히 검토되지 않은 법안들을 일괄적으로 제출할 수도 있습니다. 따라서 법안처리결과에 대한 자료를 함께 보여줌으로써 실질적인 입법활동의 생산성을 살펴보고자 합니다.
-
-
 ```{r}
-library(showtext)
-library(ggthemes)
-library(tidyverse)
-```
+# 필요한 패키지와 폰트 로딩
 
-```{r}
 options(scipen = 999, warn=-1)
+suppressMessages(library(tidyverse))
+suppressMessages(library(ggthemes))
+suppressMessages(library(showtext))
+suppressMessages(library(lubridate))
 font_add_google('Noto Sans KR', 'notosanskr')
 font_add_google('Nanum Pen Script', 'nanumpen')
 showtext_auto()
-```
 
-```{r}
+# 데이터 로딩
 people_data <- read.csv("data/new_people.csv")
 suggest_data <- read.csv("data/suggest.csv")
 process_data <- read.csv("data/process.csv")
+
+# 필요 정보 추가: 대수 별 국회의 개원일 및 폐원일
+## Source: 대한민국 국회 (https://www.assembly.go.kr/views/cms/assm/assembly/asshistory/asshistory0101.jsp)
+
+people_data <- people_data %>%
+    mutate(
+        OPEN = case_when(
+            DAESU == 1L ~ ymd("1948-05-31"), DAESU == 2L ~ ymd("1950-05-31"),
+            DAESU == 3L ~ ymd("1954-05-31"), DAESU == 4L ~ ymd("1958-05-31"),
+            DAESU == 5L ~ ymd("1960-07-29"), DAESU == 6L ~ ymd("1963-12-17"),
+            DAESU == 7L ~ ymd("1967-07-01"), DAESU == 8L ~ ymd("1971-07-01"),
+            DAESU == 9L ~ ymd("1973-03-12"), DAESU == 10L ~ ymd("1979-03-12"),
+            DAESU == 11L ~ ymd("1981-04-11"), DAESU == 12L ~ ymd("1985-04-11"),
+            DAESU == 13L ~ ymd("1988-05-30"), DAESU == 14L ~ ymd("1992-05-30"),
+            DAESU == 15L ~ ymd("1996-05-30"), DAESU == 16L ~ ymd("2000-05-30"),
+            DAESU == 17L ~ ymd("2004-05-30"), DAESU == 18L ~ ymd("2008-05-30"),
+            DAESU == 19L ~ ymd("2012-05-30"), DAESU == 20L ~ ymd("2016-05-30"),
+            DAESU == 21L ~ ymd("2020-06-05"),
+            T ~ NA_Date_
+        ),
+        CLOSE = case_when(
+            DAESU == 1L ~ ymd("1950-05-30"), DAESU == 2L ~ ymd("1954-05-30"),
+            DAESU == 3L ~ ymd("1958-05-30"), DAESU == 4L ~ ymd("1960-07-28"),
+            DAESU == 5L ~ ymd("1963-12-16"), DAESU == 6L ~ ymd("1967-06-30"),
+            DAESU == 7L ~ ymd("1971-06-30"), DAESU == 8L ~ ymd("1972-10-17"),
+            DAESU == 9L ~ ymd("1979-03-11"), DAESU == 10L ~ ymd("1980-10-27"),
+            DAESU == 11L ~ ymd("1985-04-10"), DAESU == 12L ~ ymd("1988-05-29"),
+            DAESU == 13L ~ ymd("1992-05-29"), DAESU == 14L ~ ymd("1996-05-29"),
+            DAESU == 15L ~ ymd("2000-05-29"), DAESU == 16L ~ ymd("2004-05-29"),
+            DAESU == 17L ~ ymd("2008-05-29"), DAESU == 18L ~ ymd("2012-05-29"),
+            DAESU == 19L ~ ymd("2016-05-29"), DAESU == 20L ~ ymd("2020-05-29"),
+            DAESU == 21L ~ ymd("2024-05-29"),
+            T ~ NA_Date_
+        )
+)
 ```
 
-```{r}
-head(people_data)
+이 프로젝트는 민주주의의 핵심기관인 국회가 과연 제대로 일하고 있는지를 시각화를 통해 실제 국회의 결정에 영향을 받는 국민들이 쉽고 직관적으로 이해할 수 있도록 재구성해보고자 합니다. 
 
+제14대 국회까지는 민주화 이후 국회의 운영제도를 개선하고 지방자치제를 실시하는 등의 민주적 질서를 확립하기 위한 제반 개혁들이 중점적으로 이루어진 시기로, 국회가 민주적 제도로 제기능을 수행하기 위한 과도기의 단계라고 할 수 있습니다. 따라서 우리는 제15대 국회부터 최근의 제21대 국회에 이르기까지 데이터를 통해 국회의 입법활동의 변화를 추적합니다.
+
+### 각 대수 국회 입활활동 평가
+
+먼저 국회의원들이 본연의 역할이라고 할 수 있는 입법활동을 얼마나 많이 했는지를 살펴보고자 합니다. 여기서는 각 대수별로 국회의원들이 법안을 발의한 수를 살펴보고자 합니다. 국회의 입안 수는 일반적으로 입법생산성을 보여주는 지표로 평가됩니다.
+
+#### 15대 이후 각 대수의 국회에서 회기 기간 동안 얼마나 입법활동을 활발히 하였는가? 활동 정도의 변화가 있었는가?
+
+```{r}
 people_info <- people_data %>%
     select(DAESU:BIRTH) %>%
     filter(DAESU >= 15)
-head(people_info)
 
+options(repr.plot.width=5, repr.plot.height=3)
+
+custom_theme <- function(base_size = 12, base_family = "notosanskr"){
+    theme_fivethirtyeight() %+replace%
+        theme(legend.position = "none",
+              text = element_text(family = "notosanskr"),
+              panel.grid.major.x = element_blank(),
+              title = element_text(size = rel(2)),
+              axis.text = element_text(size = rel(1.2)),
+              axis.title = element_text(size = rel(0.7)), 
+              axis.line = element_line(size = rel(0.1)))
+}
 ```
 
-```{r}
-# options(repr.plot.width = 3, repr.plot.height = 2, repr.plot.res = 300)
-options(repr.plot.width=8, repr.plot.height=5)
+```{r plot1}
 people_info %>%
     mutate(DAESU = paste(DAESU, "대")) %>%
     group_by(DAESU) %>%
     summarize(n = n()) %>%
     ggplot(., aes(x = as.factor(DAESU), n)) +
     geom_bar(stat = "identity", col = "gray10", width = 0.75, fill = "orangered3") +
-    geom_text(aes(y = n + 15, label = n), size = 12, family="notosanskr")+
-    theme_fivethirtyeight() +
+    geom_text(aes(y = n + 15, label = n), size = 5, family = "notosanskr") +
     ylim(NA, 400) + 
-    theme(legend.position = "none",
-          panel.grid.major.x=element_blank(),
-          title = element_text(size = 50, family="notosanskr"),
-          axis.title = element_text(size = 30, family="notosanskr"), 
-          axis.text = element_text(size = 30, family="notosanskr"), 
-          axis.line = element_line(size = 0.4, colour = "grey10")) +
+    custom_theme() +
     labs(title = "국회 대수별 국회의원 수",
          x = "", y = "인원 수 (명)")
 ```
+
+Figure 1은 각 대수 별 국회의원 수의 변화를 보여줍니다. 국회의원의 정수는 헌법에 명시되어 있지만, 선거법 위반 혹은 국회의원 개인의 일신상의 이유로 의원의 역할을 수행할 수 없을 때, 해당 의원의 자리를 재선거 혹은 보궐선거의 방식으로 교체하게 됩니다. 따라서 대수별로 국회의원 정수에는 차이가 존재할 수 있습니다. Figure 1은 제15대에 국회의원의 수가 가장 많았으며, 현재 개원한 21대를 제외하고는 제16대 국회의 의원 수가 정수에서 가장 변화가 적다는 것을 보여줍니다.
+
+그렇다면 각 대수 별로 국회는 얼마나 일을 많이 했을까요? Figure 2는 제15대부터 제20대 사이의 국회의원들의 법안발의 수를 대수별로 보여줍니다. 대수를 거듭할수록 국회의원들의 법안 발의 수의 총량이 큰 폭으로 증가하는 것을 확인할 수 있습니다. 제20대 국회는 총 2,1594 건의 가장 높은 입법 발의건수를 보여주고 있으며, 제21대 국회의 경우 2020년 6월 5일에 개원하여 약 6개월 동안 4,015 건을 발의한 것을 확인할 수 있습니다. 제21대 국회의 폐원일이 2024년 5월 29일이라는 점을 감안해 볼 때, 제21대 국회는 제20대 국회와 비슷하거나 더 많은 발의가 이루어질 수 있다고 가늠해볼 수 있습니다.
+
+```{r plot2}
+suggest_data %>% 
+    group_by(AGE) %>% 
+    dplyr::filter(AGE >= 15) %>%
+    summarise(n = n()) %>% 
+    ggplot(., aes(x = factor(AGE, labels = paste0(15:21, "대")),
+                  y = n)) +
+    geom_bar(stat = "identity", col = "gray10", width = 0.75, fill = "orangered3") +
+    geom_text(aes(y = n + 1000, label = n), size = 5, family = "notosanskr") +
+    custom_theme() +
+    labs(title = "대수별 국회 법안 발의건수 (15대~21대)",
+        x = "", y = "발의건수")
+```
+국회의원의 수는 대수별로 다르기 때문에 (재보궐), Figure 3는 국회의원 1명을 기준으로 평균적으로 얼마나 법안을 발의하는지를 살펴보았습니다. 
+
+```{r plot3}
+member <- people_info %>%
+    group_by(DAESU) %>%
+    summarize(n = n()) %>% select(DAESU, MEM_NM = n)
+
+sum_suggest <- suggest_data %>% 
+    group_by(AGE) %>% 
+    dplyr::filter(AGE >= 15) %>%
+    summarise(n = n()) 
+
+sum_member <- left_join(sum_suggest, member, by = c("AGE" = "DAESU"))
+    
+sum_member %>%
+    mutate(LawPer = round(n / MEM_NM, 1)) %>%
+    ggplot(., aes(x = factor(AGE, labels = paste0(15:21, "대")),
+                  y = LawPer)) +
+    geom_bar(stat = "identity", col = "gray10", width = 0.75, fill = "orangered3") +
+    geom_text(aes(y = LawPer + 3, label = LawPer), size = 5, family = "notosanskr") +
+    custom_theme() +
+    labs(title = "대수별 국회의원 1인 당 법안 발의건수 (15대~21대)",
+        x = "", y = "발의건수")
+```
+
+Figure 3는 제20대 국회에 이르러서는 국회의원 1인당 법안발의 건수가 제15대에 비해 약 27배 증가한 것을 확인할 수 있습니다. 제20대 국회의 국회의원 1인당 법안발의 건수는 직전의 제19대와 비교하여서도 약 1.5배에 달하여, 국회의원들이 시간이 갈수록 더 왕성한 입법활동을 수행하고 있다는 것을 확인할 수 있습니다.
+
+#### 법안처리결과 (폐기, 가결, 대안반영)는 어떻게 나타나는지?
+
+우리는 흔히 왕성한 법안발의 활동을 하는 국회의원이 생산적인 국회의원이라고 생각할 수 있습니다. 하지만 실적을 평가받고자 하는 국회의원들은 법리적으로 충분히 검토되지 않은 법안들을 일괄적으로 발의하여 발의 건수만을 높여 겉으로 보이는 성과를 부풀릴 가능성이 존재합니다. 따라서 국회의원들이 일을 많이 하고 있는지 뿐 아니라 "제대로" 일을 하고 있는지를 살펴보기 위해 우리는 국회의원들이 생산한 법안의 처리결과에 대해서도 시각화를 해보고자 합니다. 이 결과는 국회의원들의 입법발의의 생산량 뿐 아니라 실질적인 결과를 보여줄 수 있을 것으로 기대합니다.
+
+```{r plot4}
+# 법안처리결과 시각화
+```
+### 국회는 변화하는 사회를 잘 대표하고 있을까?
+
+#### 사회의 새로운 변화를 보여줄 입법: 초선의원의 입법활동은 재/다선의원의 입법활동과 차별점이 있는가?
+
+국회의원은 매 회기별로 선거를 통해 새롭게 선출됩니다. 이 과정을 통해 특정 정책적 선호를 가진 국회의원은 재선을 통해 자신의 이해를 입법활동을 통해 지속적으로 반영할 수 있습니다. 한편으로, 초선의원이라는 새로운 이해관계를 가진 행위자의 충원을 통해 이전 회기의 국회에서 충분히 대표되지 않았던 분야의 이익이 새롭게 대표될 수 있습니다. 따라서 초선의원의 입법활동의 특징은 어떠한가에 대해 살펴볼 필요가 있습니다. 이를 위하여 초선/재선/다선(삼선 이상) 의원들의 1인당 입법 생산성, 주요 입법 분야 등을 시각화합니다.
+
+#### 우리나라와 우리지역, 선출 유형에 따른 입법: 비례대표 의원들의 입법활동은 지역구 의원들의 입법활동과 차이가 있을까?
+
+Descriptoin should be here.
+
+#### 우리사회의 소수자들을 대변할 수 있는 입법: 기존에 정치적으로 충분히 대표되지 못한 여성의원의 입법활동은 남성의원의 입법활동과 차별점이 있을까?
+
+Descriptoin should be here.
+
+### 국회의원 입법활동의 공익 목적의 부합성
+
++ 국회의원들이 발의하는 안건이 지역적으로 편중된 예산지원이 가능한 사업 (e.g. 쪽지예산 사업)에 편중되는지 아니면 공익적 (전국적) 사업에도 골고루 나타나는가?
+
++ 과연 초당적 발의 (소속 정당에 무관하게 나타나는 공동발의)가 어떠한 분야의 입법활동에서 활발하게 나타나는지?
+
+국회의원들은 임기 중 국민을 대표하는 공인입니다. 따라서 국회의원의 입법활동이 과연 공익적 목적에 부합하는가에 대해 살펴보는 것은 중요하며, 동시에 국회의 입법활동의 정당성에 영향을 미칠 수 있습니다.
+
+### 각 국회의 주요 핵심사안
+
++ 15대부터 각 국회의 주요 핵심 키워드 (관심 입법안)가 무엇이었고, 그것이 당시의 국정기조/사회현황을 잘 반영하였는지?
+
+위의 질문들을 시각화하면서 우리는 국민의 대표가 과연 열심히 일을 하고 있는지, 제대로 일을 하고 있는지, 충분히 변화하는 사회에 맞추어 입법활동을 개선하고 있는지, 당파적 이해를 떠난 공익적 입법활동을 하고 있는지에 대한 기초적인 답변을 할 수 있을 것으로 기대합니다.
+
+
+
